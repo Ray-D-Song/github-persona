@@ -1,0 +1,19 @@
+-- Migration number: 0001 	 2024-11-24T13:35:26.979Z
+
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    github_id TEXT NOT NULL UNIQUE,
+    login TEXT NOT NULL,
+    name TEXT,
+    avatar_url TEXT NOT NULL,
+    followers INTEGER NOT NULL DEFAULT 0,
+    public_repos INTEGER NOT NULL DEFAULT 0,
+    total_stars INTEGER NOT NULL DEFAULT 0,
+    total_commits INTEGER NOT NULL DEFAULT 0,
+    total_prs INTEGER NOT NULL DEFAULT 0,
+    total_issues INTEGER NOT NULL DEFAULT 0,
+    total_reviews INTEGER NOT NULL DEFAULT 0,
+    recent_activity INTEGER NOT NULL DEFAULT 0,
+    score INTEGER NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

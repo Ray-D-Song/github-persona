@@ -457,6 +457,10 @@ button:hover {
   background-color: #0969da;
 }
 
+.sync-button:hover {
+  background-color: #0860c7;
+}
+
 @media (max-width: 768px) {
   .search-controls {
     flex-direction: column;

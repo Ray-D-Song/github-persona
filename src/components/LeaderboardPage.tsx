@@ -15,6 +15,31 @@ export const LeaderboardPage: FC<{
       
       <div class="search-bar">
         <script dangerouslySetInnerHTML={{ __html: `
+          async function syncStats() {
+            const token = localStorage.getItem('github_token');
+            if (!token) {
+              window.location.href = '/login';
+              return;
+            }
+
+            try {
+              const response = await fetch('/api/sync-stats', {
+                method: 'POST',
+                headers: {
+                  'Authorization': 'Bearer ' + token
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error(i18n.t('leaderboard.syncFailed'));
+              }
+
+              window.location.reload();
+            } catch (error) {
+              alert(i18n.t('leaderboard.syncFailed', { error: error.message }));
+            }
+          }
+
           function handleSearch(e) {
             try {
               e.preventDefault();

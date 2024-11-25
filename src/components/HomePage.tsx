@@ -12,6 +12,44 @@ export const HomePage: FC = () => {
         </div>
       </div>
       <script dangerouslySetInnerHTML={{ __html: `
+        async function refreshAiSummary() {
+          const button = document.getElementById('refresh-button');
+          const contentDiv = document.getElementById('ai-summary-content');
+          const token = localStorage.getItem('github_token');
+          
+          if (!token) {
+            window.location.href = '/login';
+            return;
+          }
+
+          try {
+            button.disabled = true;
+            button.innerHTML = i18n.t('profile.refreshing');
+            
+            contentDiv.innerHTML = \`<div class="loading">\${i18n.t('profile.analyzing')}</div>\`;
+
+            const response = await fetch('/api/refresh-summary', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + token,
+                'Accept-Language': i18n.locale
+              }
+            });
+            
+            if (!response.ok) {
+              throw new Error('刷新失败');
+            }
+
+            const data = await response.json();
+            contentDiv.innerHTML = \`<p>\${data.summary}</p>\`
+          } catch (error) {
+            contentDiv.innerHTML = \`<p class="error">刷新失败：\${error.message}</p>\`
+          } finally {
+            button.disabled = false;
+            button.innerHTML = i18n.t('profile.refresh');
+          }
+        }
+
         async function loadProfile() {
           const token = localStorage.getItem('github_token');
           if (!token) {
@@ -22,7 +60,8 @@ export const HomePage: FC = () => {
           try {
             const response = await fetch('/api/detailed-profile', {
               headers: {
-                'Authorization': 'Bearer ' + token
+                'Authorization': 'Bearer ' + token,
+                'Accept-Language': i18n.locale
               }
             });
             
@@ -48,19 +87,19 @@ export const HomePage: FC = () => {
                   <div class="stats-grid">
                     <div class="stat-item">
                       <span class="stat-value">\${data.stats.followers}</span>
-                      <span class="stat-label">关注者</span>
+                      <span class="stat-label">\${i18n.t('profile.followers')}</span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-value">\${data.stats.repos}</span>
-                      <span class="stat-label">仓库</span>
+                      <span class="stat-label">\${i18n.t('profile.repos')}</span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-value">\${data.stats.stars}</span>
-                      <span class="stat-label">获得星标</span>
+                      <span class="stat-label">\${i18n.t('profile.stars')}</span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-value">\${data.stats.score}</span>
-                      <span class="stat-label">总分</span>
+                      <span class="stat-label">\${i18n.t('profile.score')}</span>
                     </div>
                   </div>
                 </div>
@@ -69,7 +108,7 @@ export const HomePage: FC = () => {
 
             // 语言统计
             const languageHtml = \`
-              <h3>常用语言</h3>
+              <h3>\${i18n.t('profile.commonLanguages')}</h3>
               <div class="language-bars">
                 \${data.languages.map(lang => \`
                   <div class="language-bar">
@@ -82,15 +121,22 @@ export const HomePage: FC = () => {
                 \`).join('')}
               </div>
               <div class="ai-summary">
-                <h4>AI 分析</h4>
-                <p>\${data.aiSummary}</p>
+                <div class="ai-summary-header">
+                  <h4>\${i18n.t('profile.aiAnalysis')}</h4>
+                  <button onclick="refreshAiSummary()" class="refresh-button" id="refresh-button">
+                    \${i18n.t('profile.refresh')}
+                  </button>
+                </div>
+                <div id="ai-summary-content">
+                  <p>\${data.aiSummary}</p>
+                </div>
               </div>
             \`;
             document.getElementById('language-stats').innerHTML = languageHtml;
 
             // 活跃仓库
             const activeReposHtml = \`
-              <h3>最近活跃的仓库</h3>
+              <h3>\${i18n.t('profile.activeRepos')}</h3>
               <div class="repos-list">
                 \${data.activeRepos.map(repo => \`
                   <div class="repo-item">
@@ -108,7 +154,7 @@ export const HomePage: FC = () => {
 
             // 星标最多的仓库
             const starredReposHtml = \`
-              <h3>最受欢迎的仓库</h3>
+              <h3>\${i18n.t('profile.popularRepos')}</h3>
               <div class="repos-list">
                 \${data.starredRepos.map(repo => \`
                   <div class="repo-item">

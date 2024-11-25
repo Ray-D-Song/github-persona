@@ -1,5 +1,4 @@
 import { Octokit } from 'octokit'
-import { Bindings } from '../types/bindings'
 
 export class GitHubClient {
   private octokit: Octokit
@@ -114,16 +113,31 @@ export class GitHubClient {
     return Math.round(score)
   }
 
-  async getDetailedProfile(env: Bindings) {
+  async getDetailedProfile(env: Bindings, locale: string = 'en') {
     const [user, stats, languages, activeRepos, starredRepos] = await Promise.all([
       this.getUser(),
       this.getUserStats(),
       this.getLanguageStats(3),
       this.getActiveRepositories(3),
       this.getTopStarredRepositories(3)
-    ])
+    ]);
 
-    const aiSummary = await this.generateUserSummary(env, languages, starredRepos)
+    // 尝试从数据库获取已存在的 AI 总结
+    let aiSummary = ''
+    try {
+      const result = (await env.DB.prepare(
+        'SELECT summary FROM user_summaries WHERE github_id = ?'
+      ).bind(user.id.toString()).first()) as { summary: string }
+      
+      if (result?.summary) {
+        aiSummary = result.summary;
+      } else {
+        aiSummary = await this.generateAndSaveUserSummary(env, user.id.toString(), languages, starredRepos, locale);
+      }
+    } catch (error) {
+      console.error('获取 AI 总结失败:', error);
+      aiSummary = '获取分析报告失败';
+    }
 
     return {
       user,
@@ -132,10 +146,10 @@ export class GitHubClient {
       activeRepos,
       starredRepos,
       aiSummary
-    }
+    };
   }
 
-  private async getLanguageStats(limit: number = 3) {
+  async getLanguageStats(limit: number = 3) {
     const repos = await this.getRepos()
     const languageMap: Record<string, number> = {}
     
@@ -180,7 +194,7 @@ export class GitHubClient {
     )
   }
 
-  private async getTopStarredRepositories(limit: number = 3) {
+  async getTopStarredRepositories(limit: number = 3) {
     const repos = await this.getRepos()
     
     return repos
@@ -195,37 +209,55 @@ export class GitHubClient {
       }))
   }
 
-  private async generateUserSummary(env: Bindings, languages: any[], repos: any[]) {
-    console.log(env.AI.run)
+  private async generateUserSummary(env: Bindings, languages: any[], repos: any[], locale: string = 'en') {
     if (!env?.AI) {
       console.error('AI binding not found')
       return '暂时无法生成分析报告'
     }
 
-    const systemPrompt = '你是一个 GitHub 用户分析专家，请根据用户的编程语言使用情况和代表性项目，分析其技术特点和专业方向。'
-    
-    const userPrompt = `主要编程语言：${languages.map(l => `${l.name}(${l.percentage}%)`).join(', ')}
+    // 根据不同语言设置系统提示语
+    const systemPrompts = {
+      en: 'You are a GitHub user analysis expert. Please analyze the user\'s technical characteristics and professional direction based on their programming language usage and representative projects.',
+      ja: 'あなたはGitHubユーザー分析の専門家です。ユーザーのプログラミング言語の使用状況と代表的なプロジェクトに基づいて、技術的特徴と専門分野を分析してください。',
+      zh: '你是一个 GitHub 用户分析专家，请根据用户的编程语言使用情况和代表性项目，分析其技术特点和专业方向。'
+    }
+
+    const userPrompts = {
+      en: `Main programming languages: ${languages.map(l => `${l.name}(${l.percentage}%)`).join(', ')}
+
+Representative projects:
+${repos.map(r => `- ${r.name}: ${r.description || 'No description'} (${r.stars} stars)`).join('\n')}
+
+Please generate a brief user profile summary in English (no more than 200 words).`,
+      ja: `主なプログラミング言語：${languages.map(l => `${l.name}(${l.percentage}%)`).join(', ')}
+
+代表的なプロジェクト：
+${repos.map(r => `- ${r.name}: ${r.description || '説明なし'} (${r.stars} stars)`).join('\n')}
+
+日本語で簡潔なユーザープロフィールの要約を生成してください（200文字以内）。`,
+      zh: `主要编程语言：${languages.map(l => `${l.name}(${l.percentage}%)`).join(', ')}
 
 代表性项目：
 ${repos.map(r => `- ${r.name}: ${r.description || '无描述'} (${r.stars} stars)`).join('\n')}
 
-请使用中文生成一段简短的用户画像总结（不超过100字）。`
+请使用中文生成一段简短的用户画像总结（不超过200字）。`
+    }
 
     try {
       const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'system', content: systemPrompts[locale] || systemPrompts.en },
+        { role: 'user', content: userPrompts[locale] || userPrompts.en }
       ]
 
       console.log('Sending request to AI with messages:', messages)
 
-      const result = await env.AI.run('@cf/mistral/mistral-7b-instruct-v0.2-lora', {
+      const result = (await env.AI.run('@cf/mistral/mistral-7b-instruct-v0.2-lora', {
         stream: false,
         max_tokens: 512,
         temperature: 0.7,
         top_p: 0.9,
         messages
-      })
+      })) as { response: string }
 
       console.log('AI response:', result)
 
@@ -239,5 +271,26 @@ ${repos.map(r => `- ${r.name}: ${r.description || '无描述'} (${r.stars} stars
       console.error('AI 分析失败:', error)
       return '暂时无法生成分析报告 - ' + (error instanceof Error ? error.message : String(error))
     }
+  }
+
+  async generateAndSaveUserSummary(
+    env: Bindings, 
+    githubId: string, 
+    languages: any[], 
+    repos: any[],
+    locale: string = 'en'
+  ) {
+    const summary = await this.generateUserSummary(env, languages, repos, locale);
+    
+    try {
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO user_summaries (github_id, summary) 
+         VALUES (?, ?)`
+      ).bind(githubId, summary).run();
+    } catch (error) {
+      console.error('保存 AI 总结失败:', error);
+    }
+    
+    return summary;
   }
 }

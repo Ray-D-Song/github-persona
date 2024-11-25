@@ -1,5 +1,3 @@
-import { D1Database } from '@cloudflare/workers-types/experimental'
-
 interface Bindings {
   DB: D1Database
   AI: Ai

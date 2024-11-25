@@ -1,8 +1,1 @@
-```txt
-npm install
-npm run dev
-```
-
-```txt
-npm run deploy
-```
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ray-d-song/github-persona)

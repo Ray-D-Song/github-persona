@@ -1,0 +1,6 @@
+-- Migration number: 0002 	 2024-11-25T01:22:19.315Z
+CREATE TABLE IF NOT EXISTS user_summaries (
+    github_id TEXT PRIMARY KEY,
+    summary TEXT NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

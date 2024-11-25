@@ -3,8 +3,8 @@ import { renderer } from './renderer'
 import { LoginPage } from './components/LoginPage'
 import { HomePage } from './components/HomePage'
 import { GitHubClient } from './utils/github'
-import type { Bindings } from './types/bindings'
 import { LeaderboardPage } from './components/LeaderboardPage'
+import testApp from './test'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -75,12 +75,36 @@ app.get('/callback', async (c) => {
 
 app.get('/leaderboard', async (c) => {
   const { DB } = c.env
-  const users = await DB.prepare(
-    'SELECT * FROM users ORDER BY score DESC LIMIT 100'
-  ).all()
+  const page = parseInt(c.req.query('page') || '1')
+  const query = c.req.query('query') || ''
+  const pageSize = 20
+  const offset = (page - 1) * pageSize
+
+  let sql = 'SELECT * FROM users'
+  let countSql = 'SELECT COUNT(*) as total FROM users'
+  const params: any[] = []
+
+  if (query) {
+    sql += ' WHERE login LIKE ? OR name LIKE ?'
+    countSql += ' WHERE login LIKE ? OR name LIKE ?'
+    params.push(`%${query}%`, `%${query}%`)
+  }
+
+  sql += ' ORDER BY score DESC LIMIT ? OFFSET ?'
+  params.push(pageSize, offset)
+
+  const [users, count] = await Promise.all([
+    DB.prepare(sql).bind(...params).all(),
+    DB.prepare(countSql).bind(...(query ? [params[0], params[1]] : [])).first()
+  ])
   
   return c.render(
-    <LeaderboardPage users={users.results as unknown as User[]} />
+    <LeaderboardPage 
+      users={users.results as unknown as User[]}
+      total={(count as any).total}
+      page={page}
+      query={query}
+    />
   )
 })
 
@@ -147,9 +171,11 @@ app.get('/api/detailed-profile', async (c) => {
   }
 
   const token = authHeader.replace('Bearer ', '')
+  const locale = c.req.header('Accept-Language') || 'en'
+  
   try {
     const github = new GitHubClient(token)
-    const profileData = await github.getDetailedProfile(c.env)
+    const profileData = await github.getDetailedProfile(c.env, locale)
     return c.json(profileData)
   } catch (error) {
     console.error('获取用户资料失败:', error);
@@ -159,5 +185,47 @@ app.get('/api/detailed-profile', async (c) => {
     }, 401)
   }
 })
+
+app.post('/api/refresh-summary', async (c) => {
+  const authHeader = c.req.header('Authorization')
+  const locale = c.req.header('Accept-Language') || 'en'
+  if (!authHeader) {
+    return c.json({ error: 'No authorization header' }, 401)
+  }
+  if (!locale) {
+    return c.json({ error: 'No accept-language header' }, 400)
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  try {
+    const github = new GitHubClient(token)
+    const user = await github.getUser()
+    const [languages, starredRepos] = await Promise.all([
+      github.getLanguageStats(3),
+      github.getTopStarredRepositories(3)
+    ])
+
+    // 生成新的 AI 总结
+    const newSummary = await github.generateAndSaveUserSummary(
+      c.env,
+      user.id.toString(),
+      languages,
+      starredRepos,
+      locale
+    )
+
+    return c.json({ success: true, summary: newSummary })
+  } catch (error) {
+    console.error('刷新 AI 总结失败:', error)
+    return c.json({ 
+      error: error instanceof Error ? error.message : '刷新失败',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    }, 500)
+  }
+})
+
+if (import.meta.env.DEV) {
+  app.route('/test', testApp)
+}
 
 export default app

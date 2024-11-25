@@ -4,9 +4,9 @@ pages_build_output_dir = "./dist"
 compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
-GITHUB_CLIENT_ID = ""
-GITHUB_CLIENT_SECRET = ""
-REDIRECT_URI = "http://localhost:5173/callback"
+GITHUB_CLIENT_ID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+GITHUB_CLIENT_SECRET = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+REDIRECT_URI = "https://github-persona.pages.dev/callback"
 
 # [[kv_namespaces]]
 # binding = "MY_KV_NAMESPACE"
@@ -19,7 +19,7 @@ REDIRECT_URI = "http://localhost:5173/callback"
 [[d1_databases]]
 binding = "DB"
 database_name = "github-persona"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 [ai]
 binding = "AI"

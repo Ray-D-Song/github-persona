@@ -57,6 +57,8 @@ export const HomePage: FC = () => {
             return;
           }
 
+          document.getElementById('profile-info').innerHTML = '<div class="loading">loading...</div>';
+
           try {
             const response = await fetch('/api/detailed-profile', {
               headers: {

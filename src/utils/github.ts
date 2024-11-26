@@ -251,6 +251,7 @@ ${repos.map(r => `- ${r.name}: ${r.description || '无描述'} (${r.stars} stars
 
       console.log('Sending request to AI with messages:', messages)
 
+      // @ts-ignore
       const result = (await env.AI.run('@cf/mistral/mistral-7b-instruct-v0.2-lora', {
         stream: false,
         max_tokens: 512,
